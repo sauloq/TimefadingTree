@@ -7,10 +7,11 @@ class treeNode (object):
         """
         self.name = name
         self.support = support
-        #self.batch = 0
+        self.batch = 1
         self.link = None
         self.parent = parentNode
         self.children = []
+        
     def has_child (self, value):
         """
         check if an item is already in the tree path
@@ -44,7 +45,7 @@ class treeNode (object):
         self.support += support
 
     def display (self,ind=1):
-        print(' '*ind,self.name,' ', self.support)
+        print(' '*ind,self.name,' ', self.support,' ',self.batch)
         for child in self.children:
             child.display(ind+1)   
 
@@ -88,22 +89,12 @@ class Tree (object):
         for key in frequent.keys():
             headers[key] = None
         return headers
-
-
-    def apply_fading (self,node,alfa):
-        """
-        Apply alfa to all nodes
-        """
-        for i in node.children:
-            i.support *= alfa
-            self.apply_fading(i,alfa)
     
     def insert_transactions(self, transactions, threshold):
         """
         Function to insert new batches.
         """
-        tree.apply_fading(tree.root,0.6)
-
+        
         self.frequent = self.find_frequent(transactions,threshold)
         if len(self.headers) == 0:
             self.headers = self.build_header_table(self.frequent)
@@ -122,6 +113,15 @@ class Tree (object):
             if len(transactionList):
                 self.insert_tree(transactionList, root, headers)
         return root
+    
+    def insert_batch(self, transactions, threshold):
+        """
+        update the batch number and insert transactions
+        """
+        self.insert_transactions(transactions,threshold)
+        self.root.batch += 1
+
+    
     def insert_tree(self, items, node, headers):
         """
         insert transaction items into the tree.
@@ -129,7 +129,13 @@ class Tree (object):
         first = items[0]
         child = node.get_child(first)
         if child is not None:
-            child.support += 1
+            if child.batch == self.root.batch:
+                child.support += 1
+            else:
+                for i in range(self.root.batch - child.batch):
+                    child.support *= self.fading
+                child.support += 1
+                child.batch = self.root.batch
         else:
             #add a new children
             child = node.add_child(first)
@@ -266,8 +272,9 @@ tree = Tree([], 1,0.6,'Root', 0)
 
 for batch in batches:
     printTransactions(batch)
-    tree.insert_transactions(batch,1)
+    tree.insert_batch(batch,1)
     tree.root.display()
+tree.root.display()
 
 
 
