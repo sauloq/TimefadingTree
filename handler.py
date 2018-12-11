@@ -44,7 +44,7 @@ class treeNode (object):
         self.support += support
 
     def display (self,ind=1):
-        print(' '*ind,self.name,' ', self.support)
+        print('-'*ind,self.name,' ', self.support)
         for child in self.children:
             child.display(ind+1)   
 
@@ -88,8 +88,6 @@ class Tree (object):
         for key in frequent.keys():
             headers[key] = None
         return headers
-
-
     def apply_fading (self,node,alfa):
         """
         Apply alfa to all nodes
@@ -97,7 +95,6 @@ class Tree (object):
         for i in node.children:
             i.support *= alfa
             self.apply_fading(i,alfa)
-    
     def insert_transactions(self, transactions, threshold):
         """
         Function to insert new batches.
@@ -111,7 +108,6 @@ class Tree (object):
             transactionList = [x for x in transaction if x in self.frequent]
             if len(transactionList):
                 self.insert_tree(transactionList, self.root, self.headers)
-
     def build_tree (self, transactions, root_value,root_count,frequent,headers):
         """
         create the tree with the transactions.
@@ -144,6 +140,76 @@ class Tree (object):
         remaining_items = items[1:]
         if len(remaining_items) > 0:
             self.insert_tree(remaining_items,child,headers)
+    ## Mine Functions!!!
+    def mine_itemsets (self, threshold):
+        """
+        Mine the frequent itemsets
+        """
+        if self.tree_has_single_path(self.root):
+            return self.generate_pattern_list()
+        else:
+            return self.zip_patterns(self.mine_sub_trees(threshold))
+    def mine_itemsets1 (self, threshold):
+        """
+        Mine the frequent itemsets using headers        
+        """
+        frequent = {}
+        path = []
+        singletons = self.headers.keys()
+        for single in singletons:
+            current = self.headers[single]
+            path.append(current)
+            while current.link is not None:
+                current = current.link                
+                path.append(current)            
+        frequent = self.generate_pattern_list1(path)
+        return frequent
+    
+    @staticmethod
+    def generate_pattern_list1(nodes):
+        """
+        Generate a list of patterns with support counts
+        """
+        patterns = {}        
+        for item in nodes:
+            items = []
+            auxDict = {}
+            if item.parent.parent == None:
+                patterns[tuple(item.name)] = item.support
+            else:
+                current = item
+                items.append(current.name)
+                auxDict[current.name] = current.support
+                while current.parent.parent is not None:
+                    current = current.parent
+                    items.append(current.name)
+                    auxDict[current.name] = current.support
+                print(items)
+                for i in range(1,len(items)+1):
+                    for subset in itertools.combinations(items,i):
+                        if item.name in subset:
+                            pattern = tuple(sorted(list(subset)))
+                            patterns[pattern] = patterns.get(pattern,0) + min([auxDict[x] for x in subset])
+                        
+
+        """
+        items = self.frequent.keys()
+        #if we are in a conditional tree the suffix is a patterns itself.
+        if self.root.name is None:
+            suffix_value = []
+        else:
+            suffix_value = [self.root.name]
+            patterns[tuple(suffix_value)] = self.root.support
+        for i in range(1, len(items)+1):
+            for subset in itertools.combinations(items,i):
+                pattern = tuple(sorted(list(subset) + suffix_value))
+                patterns[pattern] = min([self.frequent[x] for x in subset])
+        """
+        return patterns
+
+
+
+
 
     def tree_has_single_path (self, node):
         """
@@ -156,14 +222,7 @@ class Tree (object):
             return True
         else:
             return self.tree_has_single_path(node.children[0]) # It may raise a exception if the tree is huge. (check ways to improve the size of the recursive heap)
-    def mine_itemsets (self, threshold):
-        """
-        Mine the frequent itemsets
-        """
-        if self.tree_has_single_path(self.root):
-            return self.generate_pattern_list()
-        else:
-            return self.zip_patterns(self.mine_sub_trees(threshold))
+    
 
     def zip_patterns(self, patterns):
         """
@@ -255,20 +314,25 @@ def loadData (data):
 
 
 def printTransactions(dataset):
-    for i in dataset:
-        print(i)
+    if type(dataset) is list:
+        for i in dataset:
+            print(i)
+    elif type(dataset) is dict:
+        keys = sorted(dataset.keys())
+        for i in keys:
+            print("{} - {:.4f}".format(i,dataset[i]))
 
 BATCH = 2
 #test = loadData('/Users/dossants/Desktop/DataMining/Project/IBMGenerator-master/T10I4D100K.data')
 test = loadData('T10I4D100K.data')
 batches = [test[i:i + BATCH] for i in range(0, len(test), BATCH)]
-tree = Tree([], 1,0.6,'Root', 0)
+tree = Tree([], 1,0.6,'None', 0)
 
 for batch in batches:
     printTransactions(batch)
     tree.insert_transactions(batch,1)
     tree.root.display()
 
-
+printTransactions(tree.mine_itemsets1(0.1))
 
 
