@@ -1,5 +1,7 @@
 import sys
 import itertools
+import time
+
 class treeNode (object):
     def __init__(self,name, support,parentNode):
         """
@@ -102,7 +104,9 @@ class Tree (object):
                 patterns[tuple(item.name)] = item.support
             else:
                 current = item
-                items.append(current.name)
+                suffix = (current.name,)
+                
+                #items.append(current.name)
                 auxDict[current.name] = current.support
                 while current.parent.parent is not None:
                     current = current.parent
@@ -110,8 +114,8 @@ class Tree (object):
                     auxDict[current.name] = current.support                
                 for i in range(1,len(items)+1):
                     for subset in itertools.combinations(items,i):
-                        if item.name in subset:
-                            pattern = tuple(sorted(list(subset)))
+                        #if item.name in subset:
+                            pattern = tuple(sorted(list(subset +suffix)))
                             patterns[pattern] = patterns.get(pattern,0) + min([auxDict[x] for x in subset])         
         return patterns
     
@@ -185,17 +189,36 @@ class Tree (object):
         Mine the frequent itemsets using headers        
         """
         frequent = {}
-        path = []
+        items = []
+        auxDict = {}
         singletons = self.headers.keys()
         for single in singletons:
-            current = self.headers[single]
-            path.append(current)
-            while current.link is not None:
-                current = current.link                
-                path.append(current)            
-        frequent = self.generate_pattern_list(path)
+            node = self.headers[single]            
+            while node is not None:                              
+                frequent[tuple(node.name)] = frequent.get(tuple(node.name),0) + node.support
+                items.clear()
+                auxDict.clear()
+                if node.parent.parent is not None:
+                    
+                #else:
+                    current = node
+                    suffix = (current.name,)
+                    #frequent[tuple(node.name)] = frequent.get(tuple(node.name),0) + node.support
+                    auxDict[current.name] = current.support
+                    while current.parent.parent is not None:
+                        current = current.parent
+                        items.append(current.name)
+                        auxDict[current.name] = current.support                
+                    for i in range(1,len(items)+1):
+                        for subset in itertools.combinations(items,i):
+                            #if item.name in subset:
+
+                                pattern = tuple(sorted(list(subset +suffix)))
+                                frequent[pattern] = frequent.get(pattern,0) + min([auxDict[x] for x in pattern])   
+                node = node.link                
+
         #purge item with minsup smaller than Threshold
-        for key in list(frequent.keys()):
+        for key in tuple(frequent.keys()):
             if frequent[key] < threshold:
                 del frequent[key]
         return frequent
@@ -203,7 +226,7 @@ class Tree (object):
     
         
 
-def loadData (data):
+def loadData (data,limit):
     '''
     Load the data into a a list for transactions
     input - datapath
@@ -214,7 +237,7 @@ def loadData (data):
     for transaction in data:
         transaction = transaction.split()[3:]
         result.append(transaction)
-    return result
+    return result[:limit]
 
 def printTransactions(dataset):
     if type(dataset) is list:
@@ -225,17 +248,32 @@ def printTransactions(dataset):
         for i in keys:
             print("{} - {:.4f}".format(i,dataset[i]))
 
-BATCH = 2
-#test = loadData('/Users/dossants/Desktop/DataMining/Project/IBMGenerator-master/T10I4D100K.data')
-test = loadData('T10I4D100K.data')
+BATCH = 50
+test = loadData('/Users/dossants/Desktop/DataMining/Project/IBMGenerator-master/Sample100K10A100I.data',100000)
+#test = loadData('T10I4D100K.data',6)
 batches = [test[i:i + BATCH] for i in range(0, len(test), BATCH)]
+
+start_time = time.time()
 tree = Tree([], 1,0.6,'None', 0)
+preMinSup = BATCH * 0.002
+MinSup = BATCH * 0.02
+print("TimeFading Tree")
+print("PreMinSup- {}".format(preMinSup))
+print("Batch Size - {} ".format(BATCH))
 
-for batch in batches:
+
+for index in range(len(batches)):
     #printTransactions(batch)
-    tree.insert_transactions(batch,1)
-    tree.root.display()
-    printTransactions(tree.mine_itemsets(0.1))
-    #input("Press Enter to continue")
+    tree.insert_transactions(batches[index],(preMinSup))
+    if ((index+1) % 100) == 0:
+        print("{}--- {:.4f} seconds ---".format(index+1, (time.time() - start_time)))
+    #tree.root.display()
 
-
+""" print("Mining Part")
+#printTransactions(tree.mine_itemsets(MinSup))
+start_time = time.time()
+for i in range(1,20,2):
+    minsup = i*MinSup
+    print("Mined {} - Minsup {} ".format(len(tree.mine_itemsets(minsup)),minsup))
+    print("{}--- {} seconds ---".format("Mine minsup=2%", (time.time() - start_time)))
+ """
