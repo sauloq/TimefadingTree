@@ -225,7 +225,6 @@ class Tree (object):
                 if node.parent.parent is not None:                                  
                     current = node
                     suffix = (current.name,)
-                    #frequent[tuple(node.name)] = frequent.get(tuple(node.name),0) + node.support
                     auxDict[current.name] = current.support
                     while current.parent.parent is not None:
                         current = current.parent
@@ -269,8 +268,8 @@ def printTransactions(dataset):
         for i in keys:
             print("{} - {:.4f}".format(i,dataset[i]))
 
-BATCH = 500
-test = loadData('/Users/dossants/Desktop/DataMining/Project/IBMGenerator-master/Sample100K10A100I.data',100000)
+BATCH = 50
+test = loadData('/Users/dossants/Desktop/DataMining/Project/IBMGenerator-master/T10I4D1000K.data',100000)
 #test = loadData('T10I4D100K.data',6)
 batches = [test[i:i + BATCH] for i in range(0, len(test), BATCH)]
 
@@ -286,7 +285,7 @@ print("Batch Size - {} ".format(BATCH))
 for index in range(len(batches)):
     #printTransactions(batch)
     tree.insert_batch(batches[index],(preMinSup))
-    if ((index+1)%10 )== 0 :
+    if ((index+1)%100 )== 0 :
         print("{}--- {:.4f} seconds ---".format(index+1, (time.time() - start_time)))
     #tree.root.display()
     
@@ -295,8 +294,8 @@ start_time = time.time()
 for i in range(1,20,2):
     minsup = i*MinSup
     print("Mined {} - Minsup {} ".format(len(tree.mine_itemsets(minsup)),minsup))
-    print("{}--- {} seconds ---".format("Mine minsup=2%", (time.time() - start_time)))
- """
+    print("{}--- {} seconds ---".format("Mine minsup=2%", (time.time() - start_time))) """
+
 
 
 
