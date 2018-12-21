@@ -232,8 +232,8 @@ class Tree (object):
                         auxDict[current.name] = self.update_support(current,True)              
                     for i in range(1,len(items)+1):
                         for subset in itertools.combinations(items,i):                            
-                                pattern = tuple(sorted(list(subset +suffix)))
-                                frequent[pattern] = frequent.get(pattern,0) + min([auxDict[x] for x in pattern])   
+                            pattern = tuple(sorted(list(subset +suffix)))
+                            frequent[pattern] = frequent.get(pattern,0) + min([auxDict[x] for x in pattern])   
                 node = node.link                
 
         #purge item with minsup smaller than Threshold

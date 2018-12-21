@@ -3,6 +3,8 @@ import itertools
 import time
 import os
 from  multiprocessing.pool import Pool
+import concurrent.futures
+import getopt
 
 class treeNode (object):
     def __init__(self,name, support,parentNode):
@@ -11,7 +13,7 @@ class treeNode (object):
         """
         self.name = name
         self.support = support
-        #self.batch = 0
+        self.batch = 0
         self.link = None
         self.parent = parentNode
         self.children = []
@@ -49,7 +51,7 @@ class treeNode (object):
         self.support += support
 
     def display (self,ind=1):
-        print('-'*ind,self.name,' ', self.support)
+        print('-'*ind,self.name,' ', self.support,' ',self.batch)
         for child in self.children:
             child.display(ind+1)   
 
@@ -94,8 +96,8 @@ class Tree (object):
             headers[key] = None
         return headers
     
-    @staticmethod
-    def generate_pattern_list(nodes):
+    
+    def generate_pattern_list(self, nodes):
         """
         Generate a list of patterns with support counts
         """
@@ -104,23 +106,43 @@ class Tree (object):
             items = []
             auxDict = {}
             if item.parent.parent == None:
-                patterns[tuple(item.name)] = item.support
+                patterns[tuple(item.name)] = self.update_support(item,True) #item.support
             else:
                 current = item
-                suffix = (current.name,)
-                
-                #items.append(current.name)
-                auxDict[current.name] = current.support
+                suffix = (current.name,)                
+                auxDict[current.name] = self.update_support(item,True) #current.support
                 while current.parent.parent is not None:
                     current = current.parent
                     items.append(current.name)
-                    auxDict[current.name] = current.support                
+                    auxDict[current.name] = self.update_support(item,True) #current.support                
                 for i in range(1,len(items)+1):
                     for subset in itertools.combinations(items,i):
                         #if item.name in subset:
                             pattern = tuple(sorted(list(subset +suffix)))
                             patterns[pattern] = patterns.get(pattern,0) + min([auxDict[x] for x in subset])         
+                            #Verify, this code maybe improved using the suffix support instead of finding the smaller one.
         return patterns
+    
+    def update_support(self,node, ismining):
+        """
+        Compare the batch number between the node and the root.
+        Update the value accordingly.
+        """
+        if ismining:
+            sup = 0
+            rBatch = self.root.batch -1
+        else:
+            sup = 1
+            rBatch = self.root.batch
+        if node.batch == rBatch:
+            node.support += sup
+        else:
+            """ for i in range((rBatch - node.batch)):
+                node.support *= self.fading """
+            node.support *= pow(self.fading,(rBatch - node.batch)) 
+            node.support += sup
+            node.batch = rBatch
+        return node.support
     
     def update_header_table(self,frequent):
         """
@@ -137,11 +159,12 @@ class Tree (object):
         for i in node.children:
             i.support *= alfa
             self.apply_fading(i,alfa)
+    
     def insert_transactions(self, transactions, threshold):
         """
         Function to insert new batches.
         """
-        tree.apply_fading(tree.root,0.6)
+        self.apply_fading(self.root,0.6)
 
         self.frequent = self.find_frequent(transactions,threshold)
         self.update_header_table(self.frequent)
@@ -170,10 +193,12 @@ class Tree (object):
         first = items[0]
         child = node.get_child(first)
         if child is not None:
-            child.support += 1
+            #child.support += 1
+            self.update_support(child,False)
         else:
             #add a new children
             child = node.add_child(first)
+            child.batch = self.root.batch
             if headers[first] is None:
                 headers[first] = child
             else:
@@ -190,7 +215,8 @@ class Tree (object):
         """
         purge singletons which does not met Minsup Criteria                
         """
-        result = set()
+        result = list()
+        purged = list()
         for key in self.headers.keys():
             sup = 0
             node = self.headers[key]
@@ -199,15 +225,27 @@ class Tree (object):
                 node = node.link
                 sup += node.support
             if sup >= threshold:
-                result.add(key)          
-        return result
+                result.append(key)
+            else:
+                purged.append(key)
+        if len(purged) > 0:
+            print(purged)
+        return result , purged
 
     def mine_itemsets_thread (self, threshold):
         self.minsup = threshold
-        singletons = self.clean_singleton(threshold)
+        singletons, purged = self.clean_singleton(threshold)      
+        #singletons.sort(reverse = True) 
         with Pool(4) as p:
             yield p.map(self.mine_singleton,singletons)
         #return frequent
+
+    def mine_itemsets_threadF (self, threshold):
+        self.minsup = threshold
+        singletons, purged = self.clean_singleton(threshold)
+        with concurrent.futures.ProcessPoolExecutor() as executor:
+            yield executor.map(self.mine_singleton, singletons)
+                
     def mine_singleton(self,singleton):
         threshold = self.minsup
         frequent = {}
@@ -238,7 +276,7 @@ class Tree (object):
                 del frequent[key]
         return frequent
 
-    def mine_itemsets(self, threshold):
+    def mine_itemsets(self, threshold,purge):
         """
         Mine the frequent itemsets using headers        
         """
@@ -246,40 +284,41 @@ class Tree (object):
         items = []
         auxDict = {}
         #Todo check if the singleton meet the minsup criteria. 
-        singletons = self.clean_singleton(threshold)       
+        if purge:
+            singletons, purged = self.clean_singleton(threshold)       
+        else:
+            singletons = self.headers.keys()
+            purged = []
         for single in singletons:
             frequent.clear()                  
             node = self.headers[single]            
             while node is not None:          
-                frequent[tuple(node.name)] = frequent.get(tuple(node.name),0) + node.support
+                frequent[tuple(node.name)] = frequent.get(tuple(node.name),0) + self.update_support(node,True) #node.support
                 items.clear()
                 auxDict.clear()                
                 if node.parent.parent is not None:
-                    
-                #else:
                     current = node
                     suffix = (current.name,)
-                    #frequent[tuple(node.name)] = frequent.get(tuple(node.name),0) + node.support
                     auxDict[current.name] = current.support
                     while current.parent.parent is not None:
                         current = current.parent
-                        items.append(current.name)
-                        auxDict[current.name] = current.support                
+                        if not current.name in purged:
+                            items.append(current.name)
+                            auxDict[current.name] = self.update_support(current,True)   #current.support
+                        #else:
+                            #print(purged)
+                            #print("{} is in purged list".format(current.name))                
                     for i in range(1,len(items)+1):
                         for subset in itertools.combinations(items,i):
-                            #if item.name in subset:
-
-                                pattern = tuple(sorted(list(subset +suffix)))
-                                frequent[pattern] = frequent.get(pattern,0) + min([auxDict[x] for x in pattern])   
+                            pattern = tuple(sorted(list(subset +suffix)))
+                            frequent[pattern] = frequent.get(pattern,0) + min([auxDict[x] for x in pattern])   
                 node = node.link                
         #purge item with minsup smaller than Threshold
             for key in tuple(frequent.keys()):
                 if frequent[key] < threshold:
                     del frequent[key]
             yield frequent
-    
-    
-        
+      
 
 def loadData (data,limit):
     '''
@@ -296,12 +335,14 @@ def loadData (data,limit):
 
 def printTransactions(dataset,threads):
     if type(dataset) is list:
-        for i in dataset:
-            print(i)
+        print(len(dataset))
+        """ for i in dataset:
+            print(i) """
     elif type(dataset) is dict:
-        keys = sorted(dataset.keys())
+        print(len(dataset))
+        """ keys = sorted(dataset.keys())
         for i in keys:
-            print("{} - {:.4f}".format(i,dataset[i]))
+            print("{} - {:.4f}".format(i,dataset[i])) """
     else:
         if threads:
             count =0        
@@ -317,39 +358,91 @@ def printTransactions(dataset,threads):
                 count += len(i)            
                 #printTransactions(i)
             print(count)
-sys.setrecursionlimit(1000000)
-BATCH = 50
-test = loadData('/Users/dossants/Desktop/DataMining/Project/IBMGenerator-master/T10I4D1000K.data',1000)
-#test = loadData('T10I4D100K.data',6)
-batches = [test[i:i + BATCH] for i in range(0, len(test), BATCH)]
-
-start_time = time.time()
-tree = Tree([], 1,0.6,'None', 0)
-preMinSup = BATCH * 0.002
-MinSup = BATCH * 0.001
-print("TimeFading Tree")
-print("PreMinSup- {}".format(preMinSup))
-print("Batch Size - {} ".format(BATCH))
 
 
-for index in range(len(batches)):
-    #printTransactions(batch)
-    tree.insert_transactions(batches[index],(preMinSup))
-    if ((index+1) % 100) == 0 :
-        print("{}--- {:.4f} seconds ---".format(index+1, (time.time() - start_time)))
-#tree.root.display()
-start_time = time.time()
-print("Mining Sequential")
-#printTransactions(tree.mine_itemsets(0.01),False)
-print("{}--- {} seconds ---".format("Mine with sequential code", (time.time() - start_time)))
-print("Mining with threads")
-start_time = time.time()
-printTransactions(tree.mine_itemsets_thread(0.01),True)
-print("{}--- {} seconds ---".format("Mine with Parallel code", (time.time() - start_time)))
-""" start_time = time.time()
-for i in range(1,20,2):
-    minsup = i*MinSup
-    print("Minsup {} ".format(minsup))
-    printTransactions(tree.mine_itemsets(minsup))
-    print("{}--- {} seconds ---".format("Mine minsup=2%", (time.time() - start_time)))
- """
+
+def main(argv):
+    sys.setrecursionlimit(100000)
+    plaintext_database = ''
+    preMinSup = 0
+    minSup = 0
+    sampleSize = 0
+    threads = False
+    batchSize = 1
+    fading  = 0.6
+    try:
+        opts, args = getopt.getopt(argv, "hd:p:m:s:b:t:")
+    except getopt.GetoptError:
+        print("handler.py -d <database> -p <preMinSup> -m <minSup> -s <sampleSize> -b <batchSize> -t <True/False>")
+        sys.exit(2)
+    for opt, arg in opts:
+        if opt == '-h':
+            print("handler.py -d <database> -p <preMinSup> -m <minSup> -s <sampleSize> -t <threads>")
+            sys.exit()
+        elif opt == '-d':
+            plaintext_database = arg
+        elif opt == '-p':
+            preMinSup = float(arg)
+        elif opt == '-m':
+            minSup = float(arg)
+        elif opt == '-s':
+            sampleSize = int(arg)
+        elif opt == '-b':
+            batchSize = int(arg)
+        elif opt == '-t':
+            threads = bool(arg)
+    
+    test = loadData(plaintext_database,sampleSize)
+    
+    batches = [test[i:i + batchSize] for i in range(0, len(test), batchSize)]
+
+    
+
+    tree = Tree([], 1,fading,'None', 0)
+    preMinSup *= batchSize
+    minSup *= batchSize
+
+    print("TimeFading Tree")
+    print("PreMinSup- {}".format(preMinSup))
+    print("Batch Size - {} ".format(batchSize))
+    print("Sample Size - {}".format(sampleSize))
+    start_time = time.time()
+    for index in range(len(batches)):        
+        tree.insert_transactions(batches[index],preMinSup)
+        if ((index+1) % 10) == 0 :
+            print("{}--- {:.4f} seconds ---".format(index+1, (time.time() - start_time)))
+    #tree.root.display()
+
+    start_time = time.time()
+    print("Mining Sequential singleton Purge")
+    print("Minsup - {}".format(minSup))
+    printTransactions(tree.mine_itemsets(minSup, False),False)
+    print("{}--- {} seconds ---".format("Mine with sequential code", (time.time() - start_time)))
+
+    start_time = time.time()
+    print("Mining Sequential Purge")
+    print("Minsup - {}".format(minSup))
+    printTransactions(tree.mine_itemsets(minSup, True),False)
+    print("{}--- {} seconds ---".format("Mine with sequential code", (time.time() - start_time)))
+    print("Mining with threads")
+    print("Minsup - {}".format(minSup))
+    start_time = time.time()
+    printTransactions(tree.mine_itemsets_threadF(minSup),True)
+    print("{}--- {} seconds ---".format("Mine with Parallel code", (time.time() - start_time)))
+    
+    """ start_time = time.time()
+    for i in range(1,20,2):
+        minsup = i*MinSup
+        print("Minsup {} ".format(minsup))
+        printTransactions(tree.mine_itemsets(minsup))
+        print("{}--- {} seconds ---".format("Mine minsup=2%", (time.time() - start_time)))
+    """
+
+    
+
+if __name__ == "__main__":
+    #main(sys.argv[1:])
+    main("-d /Users/dossants/Desktop/DataMining/Project/IBMGenerator-master/T10I4D1000K.data -p 0.05 -m 0.2 -s 10000 -b 50 -t True".split())
+    #'/Users/dossants/Desktop/DataMining/Project/IBMGenerator-master/T10I4D1000K.data'
+    #test = loadData('T10I4D100K.data',6)
+    #main("-d ../T10I4D1000K.data -p 0.01 -m 0.02 -s 6 -b 2 -t True".split())
