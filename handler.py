@@ -437,12 +437,11 @@ def main(argv):
         printTransactions(tree.mine_itemsets(minsup))
         print("{}--- {} seconds ---".format("Mine minsup=2%", (time.time() - start_time)))
     """
-
-    
+   
 
 if __name__ == "__main__":
     #main(sys.argv[1:])
-    main("-d /Users/dossants/Desktop/DataMining/Project/IBMGenerator-master/T10I4D1000K.data -p 0.05 -m 0.2 -s 10000 -b 50 -t True".split())
+    #main("-d /Users/dossants/Desktop/DataMining/Project/IBMGenerator-master/T10I4D1000K.data -p 0.05 -m 0.2 -s 10000 -b 50 -t True".split())
     #'/Users/dossants/Desktop/DataMining/Project/IBMGenerator-master/T10I4D1000K.data'
     #test = loadData('T10I4D100K.data',6)
-    #main("-d ../T10I4D1000K.data -p 0.01 -m 0.02 -s 6 -b 2 -t True".split())
+    main("-d T10I4D100K.data -p 0.01 -m 0.02 -s 6 -b 2 -t True".split())
