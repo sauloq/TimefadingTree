@@ -367,7 +367,7 @@ def printTransactions(dataset,threads):
 
 
 def main(argv):
-    sys.setrecursionlimit(100000)
+    sys.setrecursionlimit(100000000)
     plaintext_database = ''
     preMinSup = 0
     minSup = 0
@@ -418,24 +418,27 @@ def main(argv):
             print("{}--- {:.4f} seconds ---".format(index+1, (time.time() - start_time)))
             #tree.root.display()
             #print()
-    start_time = time.time()
-    print("Mining Sequential singleton Purge")
-    print("Minsup - {}".format(minSup))
-    #printTransactions(tree.mine_itemsets(minSup, False),False)
-    print("{}--- {} seconds ---".format("Mine with sequential code", (time.time() - start_time)))
-    #tree.root.display()
-    print()
-    start_time = time.time()
-    print("Mining Sequential Purge")
-    print("Minsup - {}".format(minSup))
-    #printTransactions(tree.mine_itemsets(minSup, True),False)
-    print("{}--- {} seconds ---".format("Mine with sequential code", (time.time() - start_time)))
-    print()
-    print("Mining with threads")
-    print("Minsup - {}".format(minSup))
-    start_time = time.time()
-    printTransactions(tree.mine_itemsets_threadF(minSup),True)
-    print("{}--- {} seconds ---".format("Mine with Parallel code", (time.time() - start_time)))
+
+    for i in range(1,5):
+        LocalMinSup = i * minSup
+        start_time = time.time()
+        #print("Mining Sequential singleton Purge")
+        print("Minsup - {}".format(LocalMinSup))
+        printTransactions(tree.mine_itemsets(LocalMinSup, False),False)
+        print("{}--- {} seconds ---".format("Mine with sequential code", (time.time() - start_time)))
+        #tree.root.display()
+        #print()
+        start_time = time.time()
+        #print("Mining Sequential Purge")
+        #print("Minsup - {}".format(LocalMinSup))
+        printTransactions(tree.mine_itemsets(LocalMinSup, True),False)
+        print("{}--- {} seconds ---".format("Mine with sequential code - Purging", (time.time() - start_time)))
+        #print()
+        #print("Mining with threads")
+        #print("Minsup - {}".format(LocalMinSup))
+        start_time = time.time()
+        printTransactions(tree.mine_itemsets_threadF(LocalMinSup),True)
+        print("{}--- {} seconds ---".format("Mine with Parallel code - Purging", (time.time() - start_time)))
     
     """ start_time = time.time()
     for i in range(1,20,2):
@@ -448,7 +451,7 @@ def main(argv):
 
 if __name__ == "__main__":
     #main(sys.argv[1:])
-    main("-d /Users/dossants/Desktop/DataMining/Project/IBMGenerator-master/T10I4D1000K.data -p 0.05 -m 0.2 -s 10000 -b 50 -t True".split())
+    main("-d /Users/dossants/Desktop/DataMining/Project/IBMGenerator-master/T10I4D1000K.data -p 0.05 -m 0.1 -s 1000 -b 50 -t True".split())
     #'/Users/dossants/Desktop/DataMining/Project/IBMGenerator-master/T10I4D1000K.data'
     #test = loadData('T10I4D100K.data',6)
     #main("-d T10I4D100K.data -p 0.01 -m 0.02 -s 6 -b 2 -t True".split())
