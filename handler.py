@@ -69,6 +69,7 @@ class Tree (object):
         self.root = self.build_tree(transactions,root_value,root_count,self.frequent,self.headers)
         self.fading = fading
         self.minsup = 0 # this attribute is going to be set on the mining time.
+        self.purged = []
 
     @staticmethod
     def find_frequent(transactions, threshold):
@@ -152,19 +153,20 @@ class Tree (object):
             if key not in self.headers.keys():
                 self.headers[key] = None
     
-    def apply_fading (self,node,alfa):
+    def apply_fading (self,node):
         """
         Apply alfa to all nodes
         """
         for i in node.children:
-            i.support *= alfa
-            self.apply_fading(i,alfa)
+            #i.support *= alfa
+            self.update_support(i,True)
+            self.apply_fading(i)
     
     def insert_transactions(self, transactions, threshold):
         """
         Function to insert new batches.
         """
-        self.apply_fading(self.root,0.6)
+        #self.apply_fading(self.root,0.6)
 
         self.frequent = self.find_frequent(transactions,threshold)
         self.update_header_table(self.frequent)
@@ -174,6 +176,7 @@ class Tree (object):
             transactionList = [x for x in transaction if x in self.frequent]
             if len(transactionList):
                 self.insert_tree(transactionList, self.root, self.headers)
+        self.root.batch += 1
 
     def build_tree (self, transactions, root_value,root_count,frequent,headers):
         """
@@ -215,8 +218,8 @@ class Tree (object):
         """
         purge singletons which does not met Minsup Criteria                
         """
-        result = list()
-        purged = list()
+        result = list()        
+        self.purged.clear()
         for key in self.headers.keys():
             sup = 0
             node = self.headers[key]
@@ -227,10 +230,10 @@ class Tree (object):
             if sup >= threshold:
                 result.append(key)
             else:
-                purged.append(key)
-        if len(purged) > 0:
-            print(purged)
-        return result , purged
+                self.purged.append(key)
+        if len(self.purged) > 0:
+            print(self.purged)
+        return result
 
     def mine_itemsets_thread (self, threshold):
         self.minsup = threshold
@@ -242,8 +245,9 @@ class Tree (object):
 
     def mine_itemsets_threadF (self, threshold):
         self.minsup = threshold
-        singletons, purged = self.clean_singleton(threshold)
-        with concurrent.futures.ProcessPoolExecutor() as executor:
+        singletons = self.clean_singleton(threshold)
+        self.apply_fading(self.root)
+        with concurrent.futures.ProcessPoolExecutor(4) as executor:
             yield executor.map(self.mine_singleton, singletons)
                 
     def mine_singleton(self,singleton):
@@ -263,8 +267,9 @@ class Tree (object):
                 auxDict[current.name] = current.support
                 while current.parent.parent is not None:
                     current = current.parent
-                    items.append(current.name)
-                    auxDict[current.name] = current.support                
+                    if not current.name in self.purged:
+                        items.append(current.name)
+                        auxDict[current.name] = current.support                
                 for i in range(1,len(items)+1):
                     for subset in itertools.combinations(items,i):
                             pattern = tuple(sorted(list(subset +suffix)))
@@ -285,7 +290,7 @@ class Tree (object):
         auxDict = {}
         #Todo check if the singleton meet the minsup criteria. 
         if purge:
-            singletons, purged = self.clean_singleton(threshold)       
+            singletons = self.clean_singleton(threshold)       
         else:
             singletons = self.headers.keys()
             purged = []
@@ -299,10 +304,10 @@ class Tree (object):
                 if node.parent.parent is not None:
                     current = node
                     suffix = (current.name,)
-                    auxDict[current.name] = current.support
+                    auxDict[current.name] = self.update_support(current,True) #current.support
                     while current.parent.parent is not None:
                         current = current.parent
-                        if not current.name in purged:
+                        if not current.name in self.purged:
                             items.append(current.name)
                             auxDict[current.name] = self.update_support(current,True)   #current.support
                         #else:
@@ -411,19 +416,21 @@ def main(argv):
         tree.insert_transactions(batches[index],preMinSup)
         if ((index+1) % 10) == 0 :
             print("{}--- {:.4f} seconds ---".format(index+1, (time.time() - start_time)))
-    #tree.root.display()
-
+            #tree.root.display()
+            #print()
     start_time = time.time()
     print("Mining Sequential singleton Purge")
     print("Minsup - {}".format(minSup))
-    printTransactions(tree.mine_itemsets(minSup, False),False)
+    #printTransactions(tree.mine_itemsets(minSup, False),False)
     print("{}--- {} seconds ---".format("Mine with sequential code", (time.time() - start_time)))
-
+    #tree.root.display()
+    print()
     start_time = time.time()
     print("Mining Sequential Purge")
     print("Minsup - {}".format(minSup))
-    printTransactions(tree.mine_itemsets(minSup, True),False)
+    #printTransactions(tree.mine_itemsets(minSup, True),False)
     print("{}--- {} seconds ---".format("Mine with sequential code", (time.time() - start_time)))
+    print()
     print("Mining with threads")
     print("Minsup - {}".format(minSup))
     start_time = time.time()
@@ -441,7 +448,7 @@ def main(argv):
 
 if __name__ == "__main__":
     #main(sys.argv[1:])
-    #main("-d /Users/dossants/Desktop/DataMining/Project/IBMGenerator-master/T10I4D1000K.data -p 0.05 -m 0.2 -s 10000 -b 50 -t True".split())
+    main("-d /Users/dossants/Desktop/DataMining/Project/IBMGenerator-master/T10I4D1000K.data -p 0.05 -m 0.2 -s 10000 -b 50 -t True".split())
     #'/Users/dossants/Desktop/DataMining/Project/IBMGenerator-master/T10I4D1000K.data'
     #test = loadData('T10I4D100K.data',6)
-    main("-d T10I4D100K.data -p 0.01 -m 0.02 -s 6 -b 2 -t True".split())
+    #main("-d T10I4D100K.data -p 0.01 -m 0.02 -s 6 -b 2 -t True".split())
