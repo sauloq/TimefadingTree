@@ -5,6 +5,8 @@ import os
 from  multiprocessing.pool import Pool
 import concurrent.futures
 import getopt
+import gc
+import faulthandler
 
 class treeNode (object):
     def __init__(self,name, support,parentNode):
@@ -164,7 +166,7 @@ class Tree (object):
         """
         Function to insert new batches.
         """
-        self.apply_fading(self.root,0.6)
+        #self.apply_fading(self.root,0.6)
 
         self.frequent = self.find_frequent(transactions,threshold)
         self.update_header_table(self.frequent)
@@ -236,7 +238,7 @@ class Tree (object):
         self.minsup = threshold
         singletons, purged = self.clean_singleton(threshold)      
         #singletons.sort(reverse = True) 
-        with Pool(4) as p:
+        with Pool(6) as p:
             yield p.map(self.mine_singleton,singletons)
         #return frequent
 
@@ -362,7 +364,7 @@ def printTransactions(dataset,threads):
 
 
 def main(argv):
-    sys.setrecursionlimit(100000)
+    sys.setrecursionlimit(1000000)
     plaintext_database = ''
     preMinSup = 0
     minSup = 0
@@ -418,6 +420,8 @@ def main(argv):
     print("Minsup - {}".format(minSup))
     printTransactions(tree.mine_itemsets(minSup, False),False)
     print("{}--- {} seconds ---".format("Mine with sequential code", (time.time() - start_time)))
+    gc.collect()
+    print()
 
     start_time = time.time()
     print("Mining Sequential Purge")
@@ -426,6 +430,10 @@ def main(argv):
     print("{}--- {} seconds ---".format("Mine with sequential code", (time.time() - start_time)))
     print("Mining with threads")
     print("Minsup - {}".format(minSup))
+
+
+    gc.collect()
+    print()
     start_time = time.time()
     printTransactions(tree.mine_itemsets_threadF(minSup),True)
     print("{}--- {} seconds ---".format("Mine with Parallel code", (time.time() - start_time)))
@@ -440,8 +448,10 @@ def main(argv):
    
 
 if __name__ == "__main__":
-    #main(sys.argv[1:])
-    #main("-d /Users/dossants/Desktop/DataMining/Project/IBMGenerator-master/T10I4D1000K.data -p 0.05 -m 0.2 -s 10000 -b 50 -t True".split())
+    if len(sys.argv) > 0:
+        main(sys.argv[1:])
+    else:
+        main("-d ../T10I4D1000K.data -p 0.005 -m 0.02 -s 2000 -b 50 -t True".split())
     #'/Users/dossants/Desktop/DataMining/Project/IBMGenerator-master/T10I4D1000K.data'
     #test = loadData('T10I4D100K.data',6)
-    main("-d T10I4D100K.data -p 0.01 -m 0.02 -s 6 -b 2 -t True".split())
+    #main("-d T10I4D100K.data -p 0.01 -m 0.02 -s 6 -b 2 -t True".split())
