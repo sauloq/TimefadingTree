@@ -57,7 +57,6 @@ class treeNode (object):
         for child in self.children:
             child.display(ind+1)   
 
-
 class Tree (object):
     """
     A stream tree.
@@ -97,7 +96,6 @@ class Tree (object):
         for key in frequent.keys():
             headers[key] = None
         return headers
-    
     
     def generate_pattern_list(self, nodes):
         """
@@ -238,15 +236,9 @@ class Tree (object):
         self.minsup = threshold
         singletons, purged = self.clean_singleton(threshold)      
         #singletons.sort(reverse = True) 
-        with Pool(6) as p:
+        with Pool(4) as p:
             yield p.map(self.mine_singleton,singletons)
         #return frequent
-
-    def mine_itemsets_threadF (self, threshold):
-        self.minsup = threshold
-        singletons, purged = self.clean_singleton(threshold)
-        with concurrent.futures.ProcessPoolExecutor() as executor:
-            yield executor.map(self.mine_singleton, singletons)
                 
     def mine_singleton(self,singleton):
         threshold = self.minsup
@@ -306,10 +298,7 @@ class Tree (object):
                         current = current.parent
                         if not current.name in purged:
                             items.append(current.name)
-                            auxDict[current.name] = self.update_support(current,True)   #current.support
-                        #else:
-                            #print(purged)
-                            #print("{} is in purged list".format(current.name))                
+                            auxDict[current.name] = self.update_support(current,True)             
                     for i in range(1,len(items)+1):
                         for subset in itertools.combinations(items,i):
                             pattern = tuple(sorted(list(subset +suffix)))
@@ -321,7 +310,6 @@ class Tree (object):
                     del frequent[key]
             yield frequent
       
-
 def loadData (data,limit):
     '''
     Load the data into a a list for transactions
@@ -337,14 +325,9 @@ def loadData (data,limit):
 
 def printTransactions(dataset,threads):
     if type(dataset) is list:
-        print(len(dataset))
-        """ for i in dataset:
-            print(i) """
+        print(len(dataset))        
     elif type(dataset) is dict:
-        print(len(dataset))
-        """ keys = sorted(dataset.keys())
-        for i in keys:
-            print("{} - {:.4f}".format(i,dataset[i])) """
+        print(len(dataset))        
     else:
         if threads:
             count =0        
@@ -377,6 +360,10 @@ def main(argv):
     except getopt.GetoptError:
         print("handler.py -d <database> -p <preMinSup> -m <minSup> -s <sampleSize> -b <batchSize> -t <True/False>")
         sys.exit(2)
+    if len(opts) < 6:
+        print("Please provide all parameters needed.")
+        print("handler.py -d <database> -p <preMinSup> -m <minSup> -s <sampleSize> -b <batchSize> -t <True/False>")
+        sys.exit(2)
     for opt, arg in opts:
         if opt == '-h':
             print("handler.py -d <database> -p <preMinSup> -m <minSup> -s <sampleSize> -t <threads>")
@@ -395,11 +382,7 @@ def main(argv):
             threads = bool(arg)
     
     test = loadData(plaintext_database,sampleSize)
-    
     batches = [test[i:i + batchSize] for i in range(0, len(test), batchSize)]
-
-    
-
     tree = Tree([], 1,fading,'None', 0)
     preMinSup *= batchSize
     minSup *= batchSize
@@ -420,9 +403,7 @@ def main(argv):
     print("Minsup - {}".format(minSup))
     printTransactions(tree.mine_itemsets(minSup, False),False)
     print("{}--- {} seconds ---".format("Mine with sequential code", (time.time() - start_time)))
-    gc.collect()
     print()
-
     start_time = time.time()
     print("Mining Sequential Purge")
     print("Minsup - {}".format(minSup))
@@ -430,28 +411,15 @@ def main(argv):
     print("{}--- {} seconds ---".format("Mine with sequential code", (time.time() - start_time)))
     print("Mining with threads")
     print("Minsup - {}".format(minSup))
-
-
-    gc.collect()
     print()
     start_time = time.time()
     printTransactions(tree.mine_itemsets_threadF(minSup),True)
     print("{}--- {} seconds ---".format("Mine with Parallel code", (time.time() - start_time)))
-    
-    """ start_time = time.time()
-    for i in range(1,20,2):
-        minsup = i*MinSup
-        print("Minsup {} ".format(minsup))
-        printTransactions(tree.mine_itemsets(minsup))
-        print("{}--- {} seconds ---".format("Mine minsup=2%", (time.time() - start_time)))
-    """
    
 
 if __name__ == "__main__":
-    if len(sys.argv) > 0:
+    if len(sys.argv) > 1:
         main(sys.argv[1:])
     else:
         main("-d ../T10I4D1000K.data -p 0.005 -m 0.02 -s 2000 -b 50 -t True".split())
-    #'/Users/dossants/Desktop/DataMining/Project/IBMGenerator-master/T10I4D1000K.data'
-    #test = loadData('T10I4D100K.data',6)
-    #main("-d T10I4D100K.data -p 0.01 -m 0.02 -s 6 -b 2 -t True".split())
+    
