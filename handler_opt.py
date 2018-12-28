@@ -158,6 +158,7 @@ class Tree (object):
             transactionList = [x for x in transaction if x in self.frequent]
             if len(transactionList):
                 self.insert_tree(transactionList, self.root, self.headers)
+        self.root.batch += 1
 
     def build_tree (self, transactions, root_value,root_count,frequent,headers):
         """
@@ -169,14 +170,7 @@ class Tree (object):
             if len(transactionList):
                 self.insert_tree(transactionList, root, headers)
         return root
-    
-    def insert_batch(self, transactions, threshold):
-        """
-        update the batch number and insert transactions
-        """
-        self.insert_transactions(transactions,threshold)
-        self.root.batch += 1
-    
+           
     def insert_tree(self, items, node, headers):
         """
         insert transaction items into the tree.

@@ -70,6 +70,7 @@ class Tree (object):
         self.root = self.build_tree(transactions,root_value,root_count,self.frequent,self.headers)
         self.fading = fading
         self.minsup = 0 # this attribute is going to be set on the mining time.
+        self.purged = []
 
     @staticmethod
     def find_frequent(transactions, threshold):
@@ -152,13 +153,14 @@ class Tree (object):
             if key not in self.headers.keys():
                 self.headers[key] = None
     
-    def apply_fading (self,node,alfa):
+    def apply_fading (self,node):
         """
         Apply alfa to all nodes
         """
         for i in node.children:
-            i.support *= alfa
-            self.apply_fading(i,alfa)
+            #i.support *= alfa
+            self.update_support(i,True)
+            self.apply_fading(i)
     
     def insert_transactions(self, transactions, threshold):
         """
@@ -174,6 +176,7 @@ class Tree (object):
             transactionList = [x for x in transaction if x in self.frequent]
             if len(transactionList):
                 self.insert_tree(transactionList, self.root, self.headers)
+        self.root.batch += 1
 
     def build_tree (self, transactions, root_value,root_count,frequent,headers):
         """
@@ -215,8 +218,8 @@ class Tree (object):
         """
         purge singletons which does not met Minsup Criteria                
         """
-        result = list()
-        purged = list()
+        result = list()        
+        self.purged.clear()
         for key in self.headers.keys():
             sup = 0
             node = self.headers[key]
@@ -227,10 +230,10 @@ class Tree (object):
             if sup >= threshold:
                 result.append(key)
             else:
-                purged.append(key)
-        if len(purged) > 0:
-            print(purged)
-        return result , purged
+                self.purged.append(key)
+        if len(self.purged) > 0:
+            print(self.purged)
+        return result
 
     def mine_itemsets_thread (self, threshold):
         self.minsup = threshold
@@ -257,8 +260,9 @@ class Tree (object):
                 auxDict[current.name] = current.support
                 while current.parent.parent is not None:
                     current = current.parent
-                    items.append(current.name)
-                    auxDict[current.name] = current.support                
+                    if not current.name in self.purged:
+                        items.append(current.name)
+                        auxDict[current.name] = current.support                
                 for i in range(1,len(items)+1):
                     for subset in itertools.combinations(items,i):
                             pattern = tuple(sorted(list(subset +suffix)))
@@ -279,7 +283,7 @@ class Tree (object):
         auxDict = {}
         #Todo check if the singleton meet the minsup criteria. 
         if purge:
-            singletons, purged = self.clean_singleton(threshold)       
+            singletons = self.clean_singleton(threshold)       
         else:
             singletons = self.headers.keys()
             purged = []
@@ -293,10 +297,10 @@ class Tree (object):
                 if node.parent.parent is not None:
                     current = node
                     suffix = (current.name,)
-                    auxDict[current.name] = current.support
+                    auxDict[current.name] = self.update_support(current,True) #current.support
                     while current.parent.parent is not None:
                         current = current.parent
-                        if not current.name in purged:
+                        if not current.name in self.purged:
                             items.append(current.name)
                             auxDict[current.name] = self.update_support(current,True)             
                     for i in range(1,len(items)+1):
